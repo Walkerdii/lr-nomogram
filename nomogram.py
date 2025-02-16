@@ -6,7 +6,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import roc_auc_score
 import plotly.graph_objects as go
 
 # ==============================
@@ -48,9 +47,7 @@ y_val = df_val[target]
 # ==============================
 
 # 使用管道创建Logistic回归模型
-pipe = Pipeline([
-    ('lr', LogisticRegression(max_iter=5000))
-])
+pipe = Pipeline([('lr', LogisticRegression(max_iter=5000))])
 
 # 定义超参数网格
 param_grid = {
@@ -97,23 +94,25 @@ shap_values = explainer(X_val)
 # 5️⃣ 创建列线图
 # ==============================
 
-def create_nomogram(coefficients, intercept, feature_names):
+def create_nomogram(coefficients, intercept, feature_names, input_values):
     # 创建空的列线图
     fig = go.Figure()
 
-    # 添加每个特征的条形图
+    # 根据系数和输入的值计算每个特征的得分
     for i, coef in enumerate(coefficients):
         feature_name = feature_names[i]
+        score = coef * input_values[i]  # 计算得分
         fig.add_trace(go.Bar(
-            x=[coef],
+            x=[score],
             y=[feature_name],
             orientation='h',
             name=feature_name
         ))
 
     # 添加截距线
+    intercept_score = intercept  # 截距通常是最终的分数的起点
     fig.add_trace(go.Scatter(
-        x=[intercept],
+        x=[intercept_score],
         y=['Intercept'],
         mode='markers',
         marker=dict(color='red', size=10),
@@ -150,12 +149,8 @@ with st.form("input_form"):
     lumbar = st.selectbox("Lumbar puncture", options=[0, 1], format_func=lambda x: "Yes" if x else "No")
 
     # 多分类变量
-    patient_source = st.selectbox("Patient Source", options=[1, 2, 3, 4], format_func=lambda x: {
-        1: "Erban core", 2: "Erban fringe", 3: "County", 4: "Countryside"
-    }[x])
-    timing_surgery = st.selectbox("Timing of Surgery", options=[0, 1, 2], format_func=lambda x: {
-        0: "Non-surgery", 1: "Surgery within 48h", 2: "Surgery over 48h"
-    }[x])
+    patient_source = st.selectbox("Patient Source", options=[1, 2, 3, 4], format_func=lambda x: f"Source {x}")
+    timing_surgery = st.selectbox("Timing of Surgery", options=[0, 1, 2], format_func=lambda x: f"Surgery {x} hours")
 
     submitted = st.form_submit_button("预测")
 
@@ -179,5 +174,5 @@ if submitted:
     st.write(f"预测预后不良的概率: {prediction_prob:.2%}")
 
     # 创建列线图
-    fig = create_nomogram(best_model['lr'].coef_[0], best_model['lr'].intercept_[0], all_features)
+    fig = create_nomogram(best_model['lr'].coef_[0], best_model['lr'].intercept_[0], all_features, input_data.values[0])
     st.plotly_chart(fig)
